@@ -31,7 +31,7 @@ jobs:
 
       - name: Coverage comment
         id: coverage_comment
-        uses: py-cov-action/python-coverage-comment-action@__ACTION_REF__
+        uses: __ACTION_REPOSITORY_OWNER__/python-coverage-comment-action@__ACTION_REF__
         with:
           GITHUB_TOKEN: ${{ github.token }}
           ANNOTATE_MISSING_LINES: true
@@ -40,7 +40,7 @@ jobs:
           SUBPROJECT_ID: __ACTION_SUBPROJECT_ID__
 
       - name: Store Pull Request comment to be posted
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
         with:
           name: python-coverage-comment-action
