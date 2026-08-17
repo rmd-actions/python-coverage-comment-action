@@ -4,12 +4,13 @@ import dataclasses
 import decimal
 import functools
 import inspect
-import json
 import pathlib
 from collections.abc import MutableMapping
 from typing import Any
 
 from coverage_comment import log
+
+from . import activities, json
 
 
 class MissingEnvironmentVariable(Exception):
@@ -38,7 +39,7 @@ class Config:
     """This object defines the environment variables"""
 
     # A branch name, not a fully-formed ref. For example, `main`.
-    GITHUB_BASE_REF: str
+    GITHUB_BASE_REF: str = ""
     GITHUB_BASE_URL: str = "https://api.github.com"
     GITHUB_TOKEN: str = dataclasses.field(repr=False)
     GITHUB_REPOSITORY: str
@@ -50,7 +51,7 @@ class Config:
     GITHUB_REF: str
     GITHUB_EVENT_NAME: str
     GITHUB_EVENT_PATH: pathlib.Path | None = None
-    GITHUB_PR_RUN_ID: int | None
+    GITHUB_PR_RUN_ID: int | None = None
     GITHUB_STEP_SUMMARY: pathlib.Path
     COMMENT_TEMPLATE: str | None = None
     COVERAGE_DATA_BRANCH: str = "python-coverage-comment-action-data"
@@ -66,6 +67,7 @@ class Config:
     ANNOTATION_TYPE: str = "warning"
     MAX_FILES_IN_COMMENT: int = 25
     USE_GH_PAGES_HTML_URL: bool = False
+    ACTIVITY: activities.Activity | None = None
     VERBOSE: bool = False
     # Only for debugging, not exposed in the action:
     FORCE_WORKFLOW_RUN: bool = False
@@ -81,7 +83,7 @@ class Config:
 
     @classmethod
     def clean_github_pr_run_id(cls, value: str) -> int | None:
-        return int(value) if value else None
+        return int(value)
 
     @classmethod
     def clean_github_step_summary(cls, value: str) -> pathlib.Path:
@@ -131,6 +133,18 @@ class Config:
     def clean_github_event_path(cls, value: str) -> pathlib.Path:
         return pathlib.Path(value)
 
+    @classmethod
+    def clean_max_files_in_comment(cls, value: str) -> int:
+        return int(value)
+
+    @classmethod
+    def clean_use_gh_pages_html_url(cls, value: str) -> bool:
+        return str_to_bool(value)
+
+    @classmethod
+    def clean_activity(cls, activity: str) -> activities.Activity | None:
+        return activities.Activity(activity)
+
     @property
     def GITHUB_PR_NUMBER(self) -> int | None:
         # "refs/pull/2/merge"
@@ -149,7 +163,7 @@ class Config:
     def GITHUB_EVENT_PAYLOAD(self) -> dict[str, Any]:
         if not self.GITHUB_EVENT_PATH:
             return {}
-        return json.loads(self.GITHUB_EVENT_PATH.read_text())
+        return json.loads_dict(self.GITHUB_EVENT_PATH.read_text())
 
     @property
     def GITHUB_EVENT_TYPE(self) -> str | None:
@@ -180,11 +194,12 @@ class Config:
     # os.environ is, and just saying `dict[str, str]` is not enough to make
     # mypy happy
     @classmethod
-    def from_environ(cls, environ: MutableMapping[str, str]) -> Config:
+    def from_environ(cls, environ: MutableMapping[str, Any]) -> Config:
         possible_variables = [e for e in inspect.signature(cls).parameters]
         config: dict[str, Any] = {
             k: v for k, v in environ.items() if k in possible_variables
         }
+        config = {k: v for k, v in config.items() if v != ""}
         for key, value in list(config.items()):
             if func := getattr(cls, f"clean_{key.lower()}", None):
                 try:

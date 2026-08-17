@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import dataclasses
 import decimal
-import json
 import pathlib
 import shutil
 import tempfile
@@ -16,6 +15,8 @@ from typing import Any, Protocol, TypedDict
 import httpx
 
 from coverage_comment import badge, coverage, log
+
+from . import json
 
 ENDPOINT_PATH = pathlib.Path("endpoint.json")
 DATA_PATH = pathlib.Path("data.json")
@@ -110,14 +111,14 @@ def compute_datafile(
 
 
 def parse_datafile(contents: str) -> tuple[coverage.Coverage | None, decimal.Decimal]:
-    file_contents = json.loads(contents)
+    file_contents = json.loads_dict(contents)
     coverage_rate = decimal.Decimal(str(file_contents["coverage"])) / decimal.Decimal(
         "100"
     )
     try:
         return coverage.extract_info(
-            data=file_contents["raw_data"],
-            coverage_path=pathlib.Path(file_contents["coverage_path"]),
+            data=file_contents["raw_data"],  # pyright: ignore[reportArgumentType]
+            coverage_path=pathlib.Path(file_contents["coverage_path"]),  # pyright: ignore[reportArgumentType]
         ), coverage_rate
     except KeyError:
         return None, coverage_rate
@@ -145,11 +146,10 @@ def get_coverage_html_files(
     *,
     coverage_path: pathlib.Path,
     gen_dir: pathlib.Path | None = None,
+    _generate_coverage_html_files: Any = coverage.generate_coverage_html_files,
 ) -> ReplaceDir:
     html_dir = pathlib.Path(tempfile.mkdtemp(dir=gen_dir))
-    coverage.generate_coverage_html_files(
-        destination=html_dir, coverage_path=coverage_path
-    )
+    _generate_coverage_html_files(destination=html_dir, coverage_path=coverage_path)
     dest = pathlib.Path("htmlcov")
     # Coverage may or may not create a .gitignore.
     (html_dir / ".gitignore").unlink(missing_ok=True)

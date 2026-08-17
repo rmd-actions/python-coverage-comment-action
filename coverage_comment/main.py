@@ -3,11 +3,11 @@ from __future__ import annotations
 import functools
 import logging
 import os
-import sys
+from typing import Any
 
 import httpx
 
-from coverage_comment import activity as activity_module
+from coverage_comment import activities as activity_module
 from coverage_comment import (
     comment_file,
     communication,
@@ -25,41 +25,6 @@ from coverage_comment import (
 from coverage_comment import coverage as coverage_module
 
 
-def main():
-    try:
-        logging.basicConfig(level="DEBUG")
-        logging.getLogger().handlers[0].formatter = log_utils.GitHubFormatter()
-
-        log.info("Starting action")
-        config = settings.Config.from_environ(environ=os.environ)
-
-        git = subprocess.Git()
-
-        with (
-            httpx.Client(
-                base_url=config.GITHUB_BASE_URL,
-                follow_redirects=True,
-                headers={"Authorization": f"token {config.GITHUB_TOKEN}"},
-            ) as github_session,
-            httpx.Client() as http_session,
-        ):
-            exit_code = action(
-                config=config,
-                github_session=github_session,
-                http_session=http_session,
-                git=git,
-            )
-
-        log.info("Ending action")
-        sys.exit(exit_code)
-
-    except Exception:
-        log.exception(
-            "Critical error. This error possibly occurred because the permissions of the workflow are set incorrectly. You can see the correct setting of permissions here: https://github.com/py-cov-action/python-coverage-comment-action#basic-usage\nOtherwise please look for open issues or open one in https://github.com/py-cov-action/python-coverage-comment-action/"
-        )
-        sys.exit(1)
-
-
 def action(
     config: settings.Config,
     github_session: httpx.Client,
@@ -74,22 +39,26 @@ def action(
         github=gh, repository=config.GITHUB_REPOSITORY
     )
     try:
-        activity = activity_module.find_activity(
-            event_name=event_name,
-            is_default_branch=repo_info.is_default_branch(ref=config.GITHUB_REF),
-            event_type=config.GITHUB_EVENT_TYPE,
-            is_pr_merged=config.IS_PR_MERGED,
-        )
+        activity = config.ACTIVITY
+        if not activity:
+            activity = activity_module.find_activity(
+                event_name=event_name,
+                is_default_branch=repo_info.is_default_branch(ref=config.GITHUB_REF),
+                event_type=config.GITHUB_EVENT_TYPE,
+                is_pr_merged=config.IS_PR_MERGED,
+            )
     except activity_module.ActivityNotFound:
         log.error(
-            'This action has only been designed to work for "pull_request", "push", '
-            f'"workflow_run", "schedule" or "merge_group" actions, not "{event_name}". Because there '
-            "are security implications. If you have a different usecase, please open an issue, "
-            "we'll be glad to add compatibility."
+            "This action's default behavior is to determine the appropriate "
+            "mode based on the current branch, whether or not it's in a pull "
+            "request, and if that pull request is open or closed. This "
+            "frequently results in the correct action taking place, but is "
+            "only a heuristic. If you need more precise control, you should "
+            'specify the "ACTIVITY" parameter as described in the documentation.'
         )
         return 1
 
-    if activity == "save_coverage_data_files":
+    if activity == activity_module.Activity.SAVE_COVERAGE_DATA_FILES:
         return save_coverage_data_files(
             config=config,
             git=git,
@@ -97,7 +66,7 @@ def action(
             repo_info=repo_info,
         )
 
-    elif activity == "process_pr":
+    elif activity == activity_module.Activity.PROCESS_PR:
         return process_pr(
             config=config,
             gh=gh,
@@ -105,7 +74,7 @@ def action(
         )
 
     else:
-        # activity == "post_comment":
+        # activity == activity_module.Activity.POST_COMMENT:
         return post_comment(
             config=config,
             gh=gh,
@@ -461,6 +430,7 @@ def save_coverage_data_files(
         operations=operations,
         git=git,
         branch=config.FINAL_COVERAGE_DATA_BRANCH,
+        token=config.GITHUB_TOKEN,
     )
 
     log.info(log_message)
@@ -470,3 +440,43 @@ def save_coverage_data_files(
     )
 
     return 0
+
+
+def main(_action: Any = action):
+    config = None
+    try:
+        logging.basicConfig(level="DEBUG")
+        logging.getLogger().handlers[0].formatter = log_utils.GitHubFormatter()
+
+        log.info("Starting action")
+        config = settings.Config.from_environ(environ=os.environ)
+
+        git = subprocess.Git()
+
+        with (
+            httpx.Client(
+                base_url=config.GITHUB_BASE_URL,
+                follow_redirects=True,
+                headers={"Authorization": f"token {config.GITHUB_TOKEN}"},
+            ) as github_session,
+            httpx.Client() as http_session,
+        ):
+            exit_code = _action(
+                config=config,
+                github_session=github_session,
+                http_session=http_session,
+                git=git,
+            )
+
+        log.info("Ending action")
+        raise SystemExit(exit_code)
+
+    except Exception as exc:
+        log.exception(
+            "Critical error. Please look at the error details and check the user manual at "
+            "https://github.com/py-cov-action/python-coverage-comment-action\n"
+            "If you believe this is a bug in the action, please consult open issues or "
+            "open a new one at https://github.com/py-cov-action/python-coverage-comment-action/issues .\n"
+            f"Full config: {config}"
+        )
+        raise SystemExit(1) from exc

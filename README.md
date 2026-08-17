@@ -59,6 +59,36 @@ These files include:
 
 See [an example](https://github.com/py-cov-action/python-coverage-comment-action-v3-example)
 
+### Determining the mode
+
+By default, the action will attempt to pick the appropriate mode based on the
+current branch, whether or not it's in a pull request, and if that pull request
+is open or closed. This frequently results in the correct action taking place,
+but is only a heuristic. If you need more precise control, you should specify
+the `ACTIVITY` parameter to directly choose the mode. It may be one of:
+
+- `process_pr`, to select [PR mode](#pr-mode)
+- `save_coverage_data_files`, to select [Default branch mode](#default-branch-mode)
+- `post_comment`, to select [Commenting on the PR on the `push` event](#commenting-on-the-pr-on-the-push-event)
+
+Combining this with [Github's Expressions]
+(https://docs.github.com/en/actions/reference/workflows-and-actions/expressions) you can
+build out the the custom handling needed. For example:
+
+```yaml
+      - name: Coverage comment
+        id: coverage_comment
+        uses: py-cov-action/python-coverage-comment-action@sha1  # vx.y.z
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          activity: "${{ github.event_name == 'push' && 'save_coverage_data_files' || 'process_pr' }}"
+
+        # or
+
+        with:
+          activity: "${{ (github.event_name == 'push' && github.ref_name == 'main') && 'save_coverage_data_files' || 'process_pr' }}"
+```
+
 ## Usage
 
 ### Setup
@@ -124,19 +154,19 @@ jobs:
       # existing comments when direct publication is allowed.
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@sha1  # vx.y.z
 
       - name: Install everything, run the tests, produce the .coverage file
         run: make test # This is the part where you put your own test command
 
       - name: Coverage comment
         id: coverage_comment
-        uses: py-cov-action/python-coverage-comment-action@v3
+        uses: py-cov-action/python-coverage-comment-action@sha1  # vx.y.z
         with:
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: Store Pull Request comment to be posted
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@sha1  # vx.y.z
         if: steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
         with:
           # If you use a different name, update COMMENT_ARTIFACT_NAME accordingly
@@ -149,7 +179,7 @@ jobs:
 # .github/workflows/coverage.yml
 name: Post coverage comment
 
-on:
+on:  # zizmor: ignore[dangerous-triggers] We're using workflow_run to post a coverage comment on external PRs. This is safe because we don't checkout the external code or interact with the external code in any way but extracting an artifact containing the comment to post, and post it.
   workflow_run:
     workflows: ["CI"]
     types:
@@ -175,7 +205,7 @@ jobs:
       # DO NOT run actions/checkout here, for security reasons
       # For details, refer to https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
       - name: Post comment
-        uses: py-cov-action/python-coverage-comment-action@v3
+        uses: py-cov-action/python-coverage-comment-action@sha1 #  vx.y.z
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
@@ -213,7 +243,7 @@ jobs:
       # comments (to avoid publishing multiple comments in the same PR)
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@sha1  # vx.y.z
         with:
           # This is optional since by default it's to true. The git
           # operations in python-coverage-comment-action utilize the token
@@ -224,7 +254,7 @@ jobs:
         run: make test # This is the part where you put your own test command
 
       - name: Coverage comment
-        uses: py-cov-action/python-coverage-comment-action@v3
+        uses: py-cov-action/python-coverage-comment-action@sha1 #  vx.y.z
         with:
           GITHUB_TOKEN: ${{ github.token }}
 ```
@@ -258,7 +288,7 @@ jobs:
       # comments (to avoid publishing multiple comments in the same PR)
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@sha1  # vx.y.z
         with:
           # This is optional since by default it's to true. The git
           # operations in python-coverage-comment-action utilize the token
@@ -269,7 +299,7 @@ jobs:
         run: make test # This is the part where you put your own test command
 
       - name: Coverage comment
-        uses: py-cov-action/python-coverage-comment-action@v3
+        uses: py-cov-action/python-coverage-comment-action@sha1  # vx.y.z
         with:
           GITHUB_TOKEN: ${{ github.token }}
 ```
@@ -305,7 +335,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@sha1  # vx.y.z
         with:
           # This is optional since by default it's to true. The git
           # operations in python-coverage-comment-action utilize the token
@@ -314,7 +344,7 @@ jobs:
 
       - name: Set up Python
         id: setup-python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@sha1  # vx.y.z
         with:
           python-version: ${{ matrix.python_version }}
 
@@ -328,7 +358,7 @@ jobs:
           # this prefix is not used.
 
       - name: Store coverage file
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@sha1  # vx.y.z
         with:
           name: coverage-${{ matrix.python_version }}
           path: .coverage.${{ matrix.python_version }}
@@ -347,14 +377,14 @@ jobs:
       pull-requests: write
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@sha1  # vx.y.z
         with:
           # This is optional since by default it's to true. The git
           # operations in python-coverage-comment-action utilize the token
           # stored by actions/checkout.
           persist-credentials: true
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@sha1  # vx.y.z
         id: download
         with:
           pattern: coverage-*
@@ -362,13 +392,13 @@ jobs:
 
       - name: Coverage comment
         id: coverage_comment
-        uses: py-cov-action/python-coverage-comment-action@v3
+        uses: py-cov-action/python-coverage-comment-action@sha1  # vx.y.z
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MERGE_COVERAGE_FILES: true
 
       - name: Store Pull Request comment to be posted
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@sha1  # vx.y.z
         if: steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
         with:
           name: python-coverage-comment-action
@@ -416,7 +446,7 @@ Usage may look like this
 ```yaml
 - name: Coverage comment
   id: coverage_comment
-  uses: py-cov-action/python-coverage-comment-action@v3
+  uses: py-cov-action/python-coverage-comment-action@sha1  # vx.y.z
   with:
     GITHUB_TOKEN: ${{ github.token }}
 
@@ -430,7 +460,7 @@ Usage may look like this
 ```yaml
 - name: Display coverage
   id: coverage_comment
-  uses: py-cov-action/python-coverage-comment-action@v3
+  uses: py-cov-action/python-coverage-comment-action@sha1  # vx.y.z
   with:
     GITHUB_TOKEN: ${{ github.token }}
 
@@ -498,6 +528,10 @@ Usage may look like this
 
     # Deprecated, see https://docs.github.com/en/actions/monitoring-and-troubleshooting-workflows/enabling-debug-logging
     VERBOSE: false
+
+    # The specific activity that should be taken on this event, see
+    # [Determining the mode](#determining-the-mode) above.
+    ACTIVITY: ""
 ```
 
 ### Commenting on the PR on the `push` event
@@ -608,7 +642,7 @@ jobs:
       pull-requests: write
       contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@sha1  # vx.y.z
 
       - name: Test project 1
         run: make -C project_1 test
@@ -618,7 +652,7 @@ jobs:
 
       - name: Coverage comment (project 1)
         id: coverage_comment_1
-        uses: py-cov-action/python-coverage-comment-action@v3
+        uses: py-cov-action/python-coverage-comment-action@sha1  # vx.y.z
         with:
           COVERAGE_PATH: project_1
           SUBPROJECT_ID: project-1
@@ -626,14 +660,14 @@ jobs:
 
       - name: Coverage comment (project 2)
         id: coverage_comment_2
-        uses: py-cov-action/python-coverage-comment-action@v3
+        uses: py-cov-action/python-coverage-comment-action@sha1  # vx.y.z
         with:
           COVERAGE_PATH: project_2/src
           SUBPROJECT_ID: project-2
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: Store Pull Request comment to be posted
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@sha1  # vx.y.z
         if: steps.coverage_comment_1.outputs.COMMENT_FILE_WRITTEN == 'true' || steps.coverage_comment_2.outputs.COMMENT_FILE_WRITTEN == 'true'
         with:
           name: python-coverage-comment-action
@@ -645,7 +679,7 @@ jobs:
 # .github/workflows/coverage.yml
 name: Post coverage comment
 
-on:
+on:  # zizmor: ignore[dangerous-triggers] We're using workflow_run to post a coverage comment on external PRs. This is safe because we don't checkout the external code or interact with the external code in any way but extracting an artifact containing the comment to post, and post it.
   workflow_run:
     workflows: ["CI"]
     types:
@@ -662,7 +696,7 @@ jobs:
       actions: read
     steps:
       - name: Post comment
-        uses: py-cov-action/python-coverage-comment-action@v3
+        uses: py-cov-action/python-coverage-comment-action@sha1  # vx.y.z
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
@@ -670,7 +704,7 @@ jobs:
           COVERAGE_PATH: project_1
 
       - name: Post comment
-        uses: py-cov-action/python-coverage-comment-action@v3
+        uses: py-cov-action/python-coverage-comment-action@sha1  # vx.y.z
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
@@ -682,13 +716,12 @@ jobs:
 
 ## Pinning
 
-On the examples above, the version was set to the tag `v3`. Pinning to a major version
-will give you the latest release on this version. (Note that we release every time after
-a PR is merged). Pinning to a specific version (`v3.1` for example) would make the
-action more reproducible, though you'd have to update it regularly (e.g. using
-Dependabot). You can also pin a commit hash if you want to be 100% sure of what you run,
-given that tags are mutable. Finally, You can also decide to pin to main, if you're OK
-with the action maybe breaking when (if) we release a v4.
+We used to rewrite tags following the GitHub practices (and provide `@v3`, `@v3.1`, etc.).
+The new accepted good practice is release immutability, so that's what we do.
+Using standard tools like [Zizmor](https://docs.zizmor.sh/) or
+[Pinact](https://github.com/suzuki-shunsuke/pinact), you're expected to pin to a
+given commit sha, and use a comment to indicate the corresponding exact version.
+This is format is understood and followed by dependabot/renovate.
 
 ## Note on the state of this action
 
@@ -764,3 +797,18 @@ with badges. We've been iterating a lot on the new format.
 It's perfectly ok if you preferred the old format. In that case, see
 #335 for instructions on how to emulate the old format using
 `COMMENT_TEMPLATE`.
+
+## Zizmor
+
+[Zizmor](https://docs.zizmor.sh/) is an awesome security-minded linter for GitHub
+Actions. You should use it. If you use it with this action, the way this action is
+setup, it will complain about `workflow_run` unless you keep the `zizmor:
+ignore[dangerous-triggers]`. Zizmor is right, `workflow_run` is dangerous if you don't
+follow the [good
+practice](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/).
+
+As far as we know, though, this action is safe because we're very purposefully **not**
+doing things that make `workflow_run` dangerous such as checking out unsafe code or
+interpolating unsafe strings inside bash scripts. As far as we know, it's acceptable to
+silence Zizmor here. Of course, if you think you've found a flaw in the reasoning, let
+us know.
