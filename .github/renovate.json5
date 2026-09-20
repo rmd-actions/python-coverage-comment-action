@@ -1,10 +1,16 @@
 {
-  extends: ["config:recommended", ":enablePreCommit"],
+  extends: ["config:recommended", ":enablePreCommit", "helpers:pinGitHubActionDigests"],
   labels: ["deps"],
   minimumReleaseAge: "5 days",
   lockFileMaintenance: {
     enabled: true,
     automerge: true,
+  },
+  // The workflow examples in the README live in docs/examples/ as real
+  // workflows, so that zizmor can lint them. Renovate doesn't look outside
+  // .github/ on its own, and the pins would silently rot.
+  "github-actions": {
+    managerFilePatterns: ["/^docs/examples/.*\\.ya?ml$/"],
   },
   packageRules: [
     {
